@@ -86,13 +86,47 @@
 
         const toMultiplier = value => Math.pow(2, value);
 
-        const scaleCoordinate = (coord, multiplier) => {
-          if (!Array.isArray(coord)) {
-            return coord;
-          }
-          if (typeof coord[0] === 'number') {
-            if (coord.length > 2 && typeof coord[2] === 'number') {
-              return [coord[0], coord[1], coord[2] * multiplier];
+        let altitudeMultiplier = toMultiplier(parseFloat(slider.value));
+
+        const updateSliderDisplay = multiplier => {
+          sliderValue.textContent = `${multiplier.toFixed(1)}x`;
+        };
+
+        const buildLayers = multiplier => [
+          new deck.GeoJsonLayer({
+            id: 'sid-line',
+            data,
+            pickable: true,
+            stroked: true,
+            filled: false,
+            getLineWidth: 5,
+            lineWidthUnits: 'pixels',
+            getLineColor: f => f.geometry.type === 'LineString' ? lineColor : [0,0,0,0],
+            parameters: { depthTest: true }
+          }),
+          new deck.GeoJsonLayer({
+            id: 'sid-points',
+            data,
+            pickable: true,
+            pointType: 'circle',
+            getPointRadius: 120,
+            getFillColor: f => f.geometry.type === 'Point' ? pointColor : [0,0,0,0],
+            getElevation: f => f.properties && typeof f.properties.altitude_m === 'number' ? f.properties.altitude_m : 0,
+            elevationScale: multiplier,
+            extruded: true,
+            onHover: info => {
+              const el = map.getCanvasContainer();
+              el.style.cursor = info.object ? 'pointer' : '';
+            },
+            onClick: info => {
+              if (info.object) {
+                const p = info.object.properties || {};
+                const name = p.name || p.ident || 'Fix';
+                const altm = (p.altitude_m !== undefined) ? `${p.altitude_m} m` : '—';
+                const altft = (p.altitude_ft !== undefined) ? `${p.altitude_ft} ft` : '—';
+                const note = p.alt_restriction_ft || p.note || '';
+                alert(`${name}\nalt(m): ${altm}\nalt(ft): ${altft}\n${note}`);
+              }
             }
             return coord.slice();
           }
@@ -185,6 +219,13 @@
 
         updateSliderDisplay(altitudeMultiplier);
 
+<<<<<<< HEAD
+=======
+        overlay.setProps({ layers: buildLayers(altitudeMultiplier) });
+
+        updateSliderDisplay(altitudeMultiplier);
+
+>>>>>>> origin/master
         slider.addEventListener('input', () => {
           altitudeMultiplier = toMultiplier(parseFloat(slider.value));
           updateSliderDisplay(altitudeMultiplier);
