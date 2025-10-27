@@ -128,13 +128,104 @@
                 alert(`${name}\nalt(m): ${altm}\nalt(ft): ${altft}\n${note}`);
               }
             }
-          })
-        ];
+            return coord.slice();
+          }
+          return coord.map(child => scaleCoordinate(child, multiplier));
+        };
+
+        const scaleGeoJsonAltitudes = (geojson, multiplier) => ({
+          ...geojson,
+          features: geojson.features.map(feature => ({
+            ...feature,
+            geometry: {
+              ...feature.geometry,
+              coordinates: scaleCoordinate(feature.geometry.coordinates, multiplier)
+            }
+          }))
+        });
+
+        const formatMultiplier = multiplier => {
+          if (multiplier >= 10) {
+            return `${multiplier.toFixed(0)}x`;
+          }
+          if (multiplier >= 1) {
+            return `${multiplier.toFixed(1)}x`;
+          }
+          return `${multiplier.toFixed(2)}x`;
+        };
+
+        let altitudeMultiplier = toMultiplier(parseFloat(slider.value));
+
+        const updateSliderDisplay = multiplier => {
+          sliderValue.textContent = formatMultiplier(multiplier);
+        };
+
+        const buildLayers = multiplier => {
+          const scaledLineData = scaleGeoJsonAltitudes(data, multiplier);
+          return [
+            new deck.GeoJsonLayer({
+              id: 'sid-line',
+              data: scaledLineData,
+              pickable: true,
+              stroked: true,
+              filled: false,
+              getLineWidth: 5,
+              lineWidthUnits: 'pixels',
+              getLineColor: f => f.geometry.type === 'LineString' ? lineColor : [0,0,0,0],
+              parameters: { depthTest: true }
+            }),
+            new deck.GeoJsonLayer({
+              id: 'sid-points',
+              data,
+              pickable: true,
+              pointType: 'circle',
+              getPointRadius: 120,
+              getFillColor: f => f.geometry.type === 'Point' ? pointColor : [0,0,0,0],
+              getElevation: f => {
+                if (f.geometry.type !== 'Point') {
+                  return 0;
+                }
+                const alt = f.properties && typeof f.properties.altitude_m === 'number'
+                  ? f.properties.altitude_m
+                  : (Array.isArray(f.geometry.coordinates) && typeof f.geometry.coordinates[2] === 'number'
+                    ? f.geometry.coordinates[2]
+                    : 0);
+                return alt * multiplier;
+              },
+              elevationScale: 1,
+              extruded: true,
+              updateTriggers: {
+                getElevation: [multiplier]
+              },
+              onHover: info => {
+                const el = map.getCanvasContainer();
+                el.style.cursor = info.object ? 'pointer' : '';
+              },
+              onClick: info => {
+                if (info.object) {
+                  const p = info.object.properties || {};
+                  const name = p.name || p.ident || 'Fix';
+                  const altm = (p.altitude_m !== undefined) ? `${p.altitude_m} m` : '—';
+                  const altft = (p.altitude_ft !== undefined) ? `${p.altitude_ft} ft` : '—';
+                  const note = p.alt_restriction_ft || p.note || '';
+                  alert(`${name}\nalt(m): ${altm}\nalt(ft): ${altft}\n${note}`);
+                }
+              }
+            })
+          ];
+        };
 
         overlay.setProps({ layers: buildLayers(altitudeMultiplier) });
 
         updateSliderDisplay(altitudeMultiplier);
 
+<<<<<<< HEAD
+=======
+        overlay.setProps({ layers: buildLayers(altitudeMultiplier) });
+
+        updateSliderDisplay(altitudeMultiplier);
+
+>>>>>>> origin/master
         slider.addEventListener('input', () => {
           altitudeMultiplier = toMultiplier(parseFloat(slider.value));
           updateSliderDisplay(altitudeMultiplier);
