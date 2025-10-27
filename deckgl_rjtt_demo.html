@@ -27,6 +27,13 @@
     <div><strong>RJTT RWY16R &rarr; TT6R1 &rarr; TAURA &rarr; HYE</strong></div>
     <div>高度（Z）はメートル。属性に <code>altitude_ft</code>/<code>altitude_m</code> と制限文言あり。</div>
     <div>注意：研究・可視化デモ用。運航用途不可。</div>
+    <div style="margin-top: 12px;">
+      <label for="alt-scale" style="display:block; font-weight:600;">高度倍率（0.5x – 30x）</label>
+      <input id="alt-scale" type="range" min="-1" max="4.9068905956" step="0.01" value="0"
+        style="width: 220px;" />
+      <div>現在: <span id="alt-scale-value">1.0x</span></div>
+      <div style="font-size: 0.85em; color: #555;">※スライダーは 2<sup>x</sup> 対数スケールです。</div>
+    </div>
   </div>
   <script>
     // Minimal raster OSM style (no token required)
@@ -73,9 +80,19 @@
       .then(data => {
         const lineColor = [20, 20, 20, 220];
         const pointColor = [0, 120, 255, 220];
-        const EXAG = 100;
 
-        const layers = [
+        const slider = document.getElementById('alt-scale');
+        const sliderValue = document.getElementById('alt-scale-value');
+
+        const toMultiplier = value => Math.pow(2, value);
+
+        let altitudeMultiplier = toMultiplier(parseFloat(slider.value));
+
+        const updateSliderDisplay = multiplier => {
+          sliderValue.textContent = `${multiplier.toFixed(1)}x`;
+        };
+
+        const buildLayers = multiplier => [
           new deck.GeoJsonLayer({
             id: 'sid-line',
             data,
@@ -95,6 +112,7 @@
             getPointRadius: 120,
             getFillColor: f => f.geometry.type === 'Point' ? pointColor : [0,0,0,0],
             getElevation: f => f.properties && typeof f.properties.altitude_m === 'number' ? f.properties.altitude_m : 0,
+            elevationScale: multiplier,
             extruded: true,
             onHover: info => {
               const el = map.getCanvasContainer();
@@ -113,7 +131,15 @@
           })
         ];
 
-        overlay.setProps({ layers });
+        overlay.setProps({ layers: buildLayers(altitudeMultiplier) });
+
+        updateSliderDisplay(altitudeMultiplier);
+
+        slider.addEventListener('input', () => {
+          altitudeMultiplier = toMultiplier(parseFloat(slider.value));
+          updateSliderDisplay(altitudeMultiplier);
+          overlay.setProps({ layers: buildLayers(altitudeMultiplier) });
+        });
 
         // Fit to extent around Tokyo Bay
         map.fitBounds([[139.4, 35.3], [140.1, 35.8]], { padding: 50, duration: 1200 });
