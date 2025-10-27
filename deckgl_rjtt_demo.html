@@ -74,75 +74,177 @@
     });
     map.addControl(overlay);
 
+    const WIDTH_M = 20;
+    const HEIGHT_M = 4;
+    const RAD2DEG = 180 / Math.PI;
+    const TILE_SIZE = 512;
+
+    function makeUnitBoxMesh() {
+      const positions = new Float32Array([
+        // +Y face
+        -0.5, 0.5, -0.5,
+        0.5, 0.5, -0.5,
+        0.5, 0.5, 0.5,
+        -0.5, 0.5, 0.5,
+        // -Y face
+        -0.5, -0.5, -0.5,
+        -0.5, -0.5, 0.5,
+        0.5, -0.5, 0.5,
+        0.5, -0.5, -0.5,
+        // +Z face
+        -0.5, -0.5, 0.5,
+        -0.5, 0.5, 0.5,
+        0.5, 0.5, 0.5,
+        0.5, -0.5, 0.5,
+        // -Z face
+        -0.5, -0.5, -0.5,
+        0.5, -0.5, -0.5,
+        0.5, 0.5, -0.5,
+        -0.5, 0.5, -0.5,
+        // +X face
+        0.5, -0.5, -0.5,
+        0.5, -0.5, 0.5,
+        0.5, 0.5, 0.5,
+        0.5, 0.5, -0.5,
+        // -X face
+        -0.5, -0.5, -0.5,
+        -0.5, 0.5, -0.5,
+        -0.5, 0.5, 0.5,
+        -0.5, -0.5, 0.5
+      ]);
+
+      const normals = new Float32Array([
+        // +Y face
+        0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,
+        // -Y face
+        0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0,
+        // +Z face
+        0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1,
+        // -Z face
+        0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1,
+        // +X face
+        1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0,
+        // -X face
+        -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0
+      ]);
+
+      const indices = new Uint16Array([
+        0, 1, 2, 0, 2, 3,
+        4, 5, 6, 4, 6, 7,
+        8, 9, 10, 8, 10, 11,
+        12, 13, 14, 12, 14, 15,
+        16, 17, 18, 16, 18, 19,
+        20, 21, 22, 20, 22, 23
+      ]);
+
+      return {
+        attributes: {
+          POSITION: { value: positions, size: 3 },
+          NORMAL: { value: normals, size: 3 }
+        },
+        indices: { value: indices }
+      };
+    }
+
+    function lngLatToWorld(lonLat) {
+      const [lon, lat] = lonLat;
+      const lambda = (lon * Math.PI) / 180;
+      const phi = (lat * Math.PI) / 180;
+      const x = ((lambda + Math.PI) / (2 * Math.PI)) * TILE_SIZE;
+      const y =
+        ((Math.PI - Math.log(Math.tan(Math.PI / 4 + phi / 2))) / (2 * Math.PI)) * TILE_SIZE;
+      return [x, y];
+    }
+
+    function horizontalDistanceMeters(a, b) {
+      const R = 6371000;
+      const lat1 = (a[1] * Math.PI) / 180;
+      const lat2 = (b[1] * Math.PI) / 180;
+      const dLat = lat2 - lat1;
+      const dLon = ((b[0] - a[0]) * Math.PI) / 180;
+      const sinLat = Math.sin(dLat / 2);
+      const sinLon = Math.sin(dLon / 2);
+      const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLon * sinLon;
+      const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+      return R * c;
+    }
+
+    function segsFromLineString(coordsLLA) {
+      const segs = [];
+      for (let i = 0; i < coordsLLA.length - 1; i++) {
+        const a = coordsLLA[i];
+        const b = coordsLLA[i + 1];
+        const za = a[2] || 0;
+        const zb = b[2] || 0;
+
+        const A = lngLatToWorld(a);
+        const B = lngLatToWorld(b);
+        const dx = B[0] - A[0];
+        const dy = B[1] - A[1];
+        const dz = zb - za;
+        const lenXY = horizontalDistanceMeters(a, b);
+        const len3 = Math.hypot(lenXY, dz);
+        if (len3 === 0) {
+          continue;
+        }
+
+        const midLon = (a[0] + b[0]) / 2;
+        const midLat = (a[1] + b[1]) / 2;
+        const midZ = (za + zb) / 2;
+        const yaw = Math.atan2(dx, dy) * RAD2DEG;
+        const pitch = Math.atan2(dz, lenXY) * RAD2DEG;
+
+        segs.push({
+          position: [midLon, midLat, midZ],
+          length: len3,
+          yaw,
+          pitch
+        });
+      }
+      return segs;
+    }
+
+    function scaleLineCoords(coords, multiplier) {
+      return coords.map(coord => {
+        const lon = coord[0];
+        const lat = coord[1];
+        const altitude = (typeof coord[2] === 'number' ? coord[2] : 0) * multiplier;
+        return [lon, lat, altitude];
+      });
+    }
+
+    function collectBeamSegments(geojson, multiplier) {
+      const segments = [];
+      const features = Array.isArray(geojson.features) ? geojson.features : [];
+      for (const feature of features) {
+        if (!feature || !feature.geometry) {
+          continue;
+        }
+        const { type, coordinates } = feature.geometry;
+        if (type === 'LineString') {
+          segments.push(...segsFromLineString(scaleLineCoords(coordinates, multiplier)));
+        } else if (type === 'MultiLineString') {
+          for (const line of coordinates) {
+            segments.push(...segsFromLineString(scaleLineCoords(line, multiplier)));
+          }
+        }
+      }
+      return segments;
+    }
+
+    const unitBoxMesh = makeUnitBoxMesh();
+
     // Load local GeoJSON (must be in same directory)
     fetch('rjtt_rwy16r_sid_taura_demo.geojson')
       .then(r => r.json())
       .then(data => {
-        const lineColor = [20, 20, 20, 220];
         const pointColor = [0, 120, 255, 220];
+        const beamColor = [30, 80, 200];
 
         const slider = document.getElementById('alt-scale');
         const sliderValue = document.getElementById('alt-scale-value');
 
         const toMultiplier = value => Math.pow(2, value);
-
-        let altitudeMultiplier = toMultiplier(parseFloat(slider.value));
-
-        const updateSliderDisplay = multiplier => {
-          sliderValue.textContent = `${multiplier.toFixed(1)}x`;
-        };
-
-        const buildLayers = multiplier => [
-          new deck.GeoJsonLayer({
-            id: 'sid-line',
-            data,
-            pickable: true,
-            stroked: true,
-            filled: false,
-            getLineWidth: 5,
-            lineWidthUnits: 'pixels',
-            getLineColor: f => f.geometry.type === 'LineString' ? lineColor : [0,0,0,0],
-            parameters: { depthTest: true }
-          }),
-          new deck.GeoJsonLayer({
-            id: 'sid-points',
-            data,
-            pickable: true,
-            pointType: 'circle',
-            getPointRadius: 120,
-            getFillColor: f => f.geometry.type === 'Point' ? pointColor : [0,0,0,0],
-            getElevation: f => f.properties && typeof f.properties.altitude_m === 'number' ? f.properties.altitude_m : 0,
-            elevationScale: multiplier,
-            extruded: true,
-            onHover: info => {
-              const el = map.getCanvasContainer();
-              el.style.cursor = info.object ? 'pointer' : '';
-            },
-            onClick: info => {
-              if (info.object) {
-                const p = info.object.properties || {};
-                const name = p.name || p.ident || 'Fix';
-                const altm = (p.altitude_m !== undefined) ? `${p.altitude_m} m` : '—';
-                const altft = (p.altitude_ft !== undefined) ? `${p.altitude_ft} ft` : '—';
-                const note = p.alt_restriction_ft || p.note || '';
-                alert(`${name}\nalt(m): ${altm}\nalt(ft): ${altft}\n${note}`);
-              }
-            }
-            return coord.slice();
-          }
-          return coord.map(child => scaleCoordinate(child, multiplier));
-        };
-
-        const scaleGeoJsonAltitudes = (geojson, multiplier) => ({
-          ...geojson,
-          features: geojson.features.map(feature => ({
-            ...feature,
-            geometry: {
-              ...feature.geometry,
-              coordinates: scaleCoordinate(feature.geometry.coordinates, multiplier)
-            }
-          }))
-        });
 
         const formatMultiplier = multiplier => {
           if (multiplier >= 10) {
@@ -161,17 +263,17 @@
         };
 
         const buildLayers = multiplier => {
-          const scaledLineData = scaleGeoJsonAltitudes(data, multiplier);
+          const beamData = collectBeamSegments(data, multiplier);
           return [
-            new deck.GeoJsonLayer({
+            new deck.SimpleMeshLayer({
               id: 'sid-line',
-              data: scaledLineData,
+              data: beamData,
+              mesh: unitBoxMesh,
+              getPosition: d => d.position,
+              getScale: d => [WIDTH_M, HEIGHT_M, d.length],
+              getOrientation: d => [d.pitch, d.yaw, 0],
+              getColor: beamColor,
               pickable: true,
-              stroked: true,
-              filled: false,
-              getLineWidth: 5,
-              lineWidthUnits: 'pixels',
-              getLineColor: f => f.geometry.type === 'LineString' ? lineColor : [0,0,0,0],
               parameters: { depthTest: true }
             }),
             new deck.GeoJsonLayer({
@@ -180,7 +282,7 @@
               pickable: true,
               pointType: 'circle',
               getPointRadius: 120,
-              getFillColor: f => f.geometry.type === 'Point' ? pointColor : [0,0,0,0],
+              getFillColor: f => (f.geometry.type === 'Point' ? pointColor : [0, 0, 0, 0]),
               getElevation: f => {
                 if (f.geometry.type !== 'Point') {
                   return 0;
@@ -205,8 +307,8 @@
                 if (info.object) {
                   const p = info.object.properties || {};
                   const name = p.name || p.ident || 'Fix';
-                  const altm = (p.altitude_m !== undefined) ? `${p.altitude_m} m` : '—';
-                  const altft = (p.altitude_ft !== undefined) ? `${p.altitude_ft} ft` : '—';
+                  const altm = p.altitude_m !== undefined ? `${p.altitude_m} m` : '—';
+                  const altft = p.altitude_ft !== undefined ? `${p.altitude_ft} ft` : '—';
                   const note = p.alt_restriction_ft || p.note || '';
                   alert(`${name}\nalt(m): ${altm}\nalt(ft): ${altft}\n${note}`);
                 }
@@ -216,16 +318,8 @@
         };
 
         overlay.setProps({ layers: buildLayers(altitudeMultiplier) });
-
         updateSliderDisplay(altitudeMultiplier);
 
-<<<<<<< HEAD
-=======
-        overlay.setProps({ layers: buildLayers(altitudeMultiplier) });
-
-        updateSliderDisplay(altitudeMultiplier);
-
->>>>>>> origin/master
         slider.addEventListener('input', () => {
           altitudeMultiplier = toMultiplier(parseFloat(slider.value));
           updateSliderDisplay(altitudeMultiplier);
