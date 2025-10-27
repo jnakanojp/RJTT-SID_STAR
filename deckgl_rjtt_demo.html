@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RJTT RWY16R SID TAURA – deck.gl + MapLibre demo</title>
+  <style>
+    html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; }
+    .legend {
+      position: absolute; z-index: 2; top: 12px; left: 12px;
+      background: rgba(255,255,255,0.9); padding: 10px 12px; border-radius: 8px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      line-height: 1.4;
+    }
+    .legend code { background: #f3f3f3; padding: 2px 4px; border-radius: 4px; }
+  </style>
+  <!-- MapLibre & deck.gl UMD bundles from CDN -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="legend">
+    <div><strong>RJTT RWY16R &rarr; TT6R1 &rarr; TAURA &rarr; HYE</strong></div>
+    <div>高度（Z）はメートル。属性に <code>altitude_ft</code>/<code>altitude_m</code> と制限文言あり。</div>
+    <div>注意：研究・可視化デモ用。運航用途不可。</div>
+  </div>
+  <script>
+    // Minimal raster OSM style (no token required)
+    const OSM_STYLE = {
+      "version": 8,
+      "sources": {
+        "osm": {
+          "type": "raster",
+          "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+          "tileSize": 256,
+          "attribution": "&copy; OpenStreetMap contributors"
+        }
+      },
+      "layers": [
+        { "id": "osm", "type": "raster", "source": "osm" }
+      ]
+    };
+
+    // Initial camera around Tokyo Bay / Haneda
+    const INITIAL = { center: [139.80, 35.55], zoom: 9, pitch: 60, bearing: 20 };
+
+    // Create MapLibre map
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: OSM_STYLE,
+      center: INITIAL.center,
+      zoom: INITIAL.zoom,
+      pitch: INITIAL.pitch,
+      bearing: INITIAL.bearing,
+      antialias: true
+    });
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // Deck.gl overlay
+    const overlay = new deck.MapboxOverlay({
+      interleaved: true,
+      layers: []
+    });
+    map.addControl(overlay);
+
+    // Load local GeoJSON (must be in same directory)
+    fetch('rjtt_rwy16r_sid_taura_demo.geojson')
+      .then(r => r.json())
+      .then(data => {
+        const lineColor = [20, 20, 20, 220];
+        const pointColor = [0, 120, 255, 220];
+        const EXAG = 100;
+
+        const layers = [
+          new deck.GeoJsonLayer({
+            id: 'sid-line',
+            data,
+            pickable: true,
+            stroked: true,
+            filled: false,
+            getLineWidth: 5,
+            lineWidthUnits: 'pixels',
+            getLineColor: f => f.geometry.type === 'LineString' ? lineColor : [0,0,0,0],
+            parameters: { depthTest: true }
+          }),
+          new deck.GeoJsonLayer({
+            id: 'sid-points',
+            data,
+            pickable: true,
+            pointType: 'circle',
+            getPointRadius: 120,
+            getFillColor: f => f.geometry.type === 'Point' ? pointColor : [0,0,0,0],
+            getElevation: f => f.properties && typeof f.properties.altitude_m === 'number' ? f.properties.altitude_m : 0,
+            extruded: true,
+            onHover: info => {
+              const el = map.getCanvasContainer();
+              el.style.cursor = info.object ? 'pointer' : '';
+            },
+            onClick: info => {
+              if (info.object) {
+                const p = info.object.properties || {};
+                const name = p.name || p.ident || 'Fix';
+                const altm = (p.altitude_m !== undefined) ? `${p.altitude_m} m` : '—';
+                const altft = (p.altitude_ft !== undefined) ? `${p.altitude_ft} ft` : '—';
+                const note = p.alt_restriction_ft || p.note || '';
+                alert(`${name}\nalt(m): ${altm}\nalt(ft): ${altft}\n${note}`);
+              }
+            }
+          })
+        ];
+
+        overlay.setProps({ layers });
+
+        // Fit to extent around Tokyo Bay
+        map.fitBounds([[139.4, 35.3], [140.1, 35.8]], { padding: 50, duration: 1200 });
+      })
+      .catch(err => console.error('Failed to load GeoJSON:', err));
+  </script>
+</body>
+</html>

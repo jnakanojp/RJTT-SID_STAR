@@ -1,0 +1,132 @@
+{
+  "type": "FeatureCollection",
+  "name": "RJTT_RWY16R_RNAV_SID_TAURA_DEMO",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "ident": "RW16R_DER",
+        "type": "runway_der",
+        "name": "RJTT RWY16R DER (approx)",
+        "note": "Approximate threshold location from public source; for visualization only.",
+        "altitude_ft": 0,
+        "altitude_m": 0.0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          139.77166666666668,
+          35.55616666666667,
+          0.0
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ident": "TT6R1",
+        "type": "fix",
+        "name": "TT6R1",
+        "alt_restriction_ft": ">= 800 (before turn direct TT6R1)",
+        "altitude_ft_used_for_Z": "1000 (illustrative for 3D line)",
+        "altitude_ft": 1000,
+        "altitude_m": 304.8
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          139.86033333333333,
+          35.431261111111105,
+          304.8
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ident": "TAURA",
+        "type": "fix",
+        "name": "TAURA",
+        "alt_restriction_ft": ">= 9000",
+        "altitude_ft": 9000,
+        "altitude_m": 2743.2
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          139.74648333333332,
+          35.31280833333333,
+          2743.2
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "ident": "HYE",
+        "type": "navaid_vor_dme",
+        "name": "YOKOSUKA VOR/DME (HYE)",
+        "alt_restriction_ft": ">= FL150 (15000 ft)",
+        "altitude_ft": 15000,
+        "altitude_m": 4572.0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          139.587997,
+          35.255798,
+          4572.0
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "RJTT RWY16R RNAV SID & TRANSITION TAURA (historic AIP 2008)",
+        "procedure_type": "SID",
+        "runway": "16R",
+        "notes": [
+          "Climb on heading 157°M at or above 800 FT, direct TT6R1.",
+          "Cross TAURA at or above 9000 FT.",
+          "Cross HYE at or above FL150 (15000 FT)."
+        ],
+        "source_documents": [
+          "JP-AD-2.24.26 (2008-09-25 EFF)",
+          "JP-AD-2.24.27 (2008-10-23 EFF)"
+        ],
+        "disclaimer": "Visualization demo only. Not for navigation; may be outdated vs current eAIP."
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            139.77166666666668,
+            35.55616666666667,
+            0.0
+          ],
+          [
+            139.86033333333333,
+            35.431261111111105,
+            304.8
+          ],
+          [
+            139.74648333333332,
+            35.31280833333333,
+            2743.2
+          ],
+          [
+            139.587997,
+            35.255798,
+            4572.0
+          ]
+        ]
+      }
+    }
+  ]
+}
