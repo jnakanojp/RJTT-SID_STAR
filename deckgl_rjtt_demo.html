@@ -63,7 +63,11 @@
       zoom: INITIAL.zoom,
       pitch: INITIAL.pitch,
       bearing: INITIAL.bearing,
-      antialias: true
+      antialias: true,
+      pitchWithRotate: true,  // 右ドラッグでのピッチ操作を許可
+      dragRotate: true,       // 回転操作を有効
+      minPitch: 0,
+      maxPitch: 80          // 地表スレスレまで許可（90は不可）
     });
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
